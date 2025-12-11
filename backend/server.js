@@ -5,7 +5,7 @@ const cors = require('cors');
 
 const app = express();
 const port = 8000;
-app.use(express.text());
+app.use(express.json());
 app.use(cors());
 
 const db = new sqlite3.Database('./database.db', (err) => {
@@ -19,6 +19,11 @@ db.run(`CREATE TABLE IF NOT EXISTS users (
   password TEXT NOT NULL
 )`);
 
+db.run(`CREATE TABLE IF NOT EXISTS comments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  content TEXT NOT NULL
+)`);
+
 async function insertRandomUsers() {
   try {
     const urls = [1, 2, 3].map(() => axios.get('https://randomuser.me/api/'));
@@ -30,7 +35,8 @@ async function insertRandomUsers() {
         const password = u.login.password;
 
         db.run(
-        `INSERT INTO users (name, password) VALUES ('${fullName}', '${password}')`,
+        `INSERT INTO users (name, password) VALUES (?, ?)`,
+        [fullName, password],
         (err) => {
             if (err) console.error(err.message);
         }
@@ -47,69 +53,65 @@ app.get('/populate', async (req, res) => {
   res.send('Inserted 3 users into database.');
 });
 
-app.post('/query', async (req, res) => {
-  db.run(req.body)
-  res.send('Inserted 3 users into database.');
-});
+
 
 app.get('/users', (req, res) => {
-  db.all('SELECT id FROM users', [], (err, rows) => {
-    if (err) {
-      console.error(err.message);
-      res.status(500).send('Database error');
-      return;
-    }
+  db.all('SELECT id, name FROM users', [], (err, rows) => {
+    if (err) return res.status(500).json({error: 'Database error'});
     res.json(rows);
   });
 });
 
-app.post('/user', (req, res) => {
-    console.log(req.body);
+app.get('/user/:id', (req, res) => {
+    const userId = req.params.id;
+
+    // Validation : On s'assure que c'est bien un nombre
+    if (isNaN(userId)) {
+        return res.status(400).json({ error: "L'ID doit être un nombre" });
+    }
     
+    // Requête paramétrée : Impossible d'injecter du SQL ici
     db.all(
-        req.body,
-        [], 
+        "SELECT id, name, password FROM users WHERE id = ?",
+        [userId], 
         (err, rows) => {
             if (err) {
                 console.error('SQL Error:', err.message);
-                return res.status(500).json({ error: err.message });
+                return res.status(500).json({ error: "Erreur serveur" });
             }
-            console.log('Query results:', rows);
             res.json(rows);
         }
     );
 });
 
 app.post('/comment', (req, res) => {
-  const comment = req.body; 
+  // On attend un JSON { "content": "mon commentaire" }
+  const { content } = req.body; 
   
-  db.all(
-    `INSERT INTO comments (content) VALUES (?)`,[comment] ,
-    (err) => {
+  if (!content || typeof content !== 'string') {
+      return res.status(400).json({ error: "Contenu invalide" });
+  }
+  
+db.run(
+    `INSERT INTO comments (content) VALUES (?)`,
+    [content],
+    function(err) { // Utilisation de function() pour avoir accès à this.lastID
       if (err) {
         console.error(err.message);
         return res.status(500).json({ error: err.message });
       }
-      res.json({ success: true });
+      res.json({ success: true, id: this.lastID });
     }
   );
 });
 
 app.get('/comments', (req, res) => {
   db.all('SELECT * FROM comments ORDER BY id DESC', [], (err, rows) => {
-    if (err) {
-      console.error(err.message);
-      return res.status(500).send('Database error');
-    }
+    if (err) return res.status(500).send('Database error');
     res.json(rows);
   });
 });
 
-db.run(`CREATE TABLE IF NOT EXISTS comments (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  content TEXT NOT NULL
-)`);
-
 app.listen(port, () => {
-  console.log(`App listening on port ${port}`);
+  console.log(`Secure App listening on port ${port}`);
 });

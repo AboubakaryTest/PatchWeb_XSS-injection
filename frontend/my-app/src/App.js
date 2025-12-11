@@ -26,16 +26,16 @@ function App() {
     }
   };
 
-  const handleQuery = async (e) => {
+const handleQuery = async (e) => {
     e.preventDefault();
     try {
-      const response = await axios.post('http://localhost:8000/user', `SELECT id, name FROM users WHERE id = ${queryId}`, 
-        {
-          headers : {
-            "Content-Type" : 'text/plain'
-          }
-        }
-      );
+      // AVANT (Vulnérable) :
+      // axios.post('http://localhost:8000/user', `SELECT ... ${queryId}`)
+      
+      // APRÈS (Sécurisé) :
+      // On utilise une requête GET sur la nouvelle route REST
+      const response = await axios.get(`http://localhost:8000/user/${queryId}`);
+      
       setQueriedUser(response.data);
     } catch (err) {
       console.error('Error querying user:', err.message);
@@ -43,14 +43,14 @@ function App() {
     }
   };
 
-  const handleCommentSubmit = async (e) => {
+const handleCommentSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('http://localhost:8000/comment', newComment, {
-        headers: {
-          "Content-Type": 'text/plain'
-        }
+      // On envoie un objet JSON standard
+      await axios.post('http://localhost:8000/comment', { 
+        content: newComment 
       });
+      
       setNewComment('');
       loadComments();
     } catch (err) {
