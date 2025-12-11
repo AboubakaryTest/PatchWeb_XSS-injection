@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  # Service Backend
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    volumes:
+      # On crée un lien pour que la base de données ne soit pas perdue si on redémarre
+      - ./backend/database.db:/app/database.db
+      # Optionnel : permet de modifier le code sans redémarrer le conteneur (Hot Reload)
+      - ./backend:/app
+      - /app/node_modules
+    environment:
+      - PORT=8000
+
+  # Service Frontend
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      # Hot Reload pour le React aussi
+      - ./frontend/src:/my-app/src
+    # On dit au frontend d'attendre que le backend soit prêt avant de se lancer
+    depends_on:
+      - backend
+    # Astuce pour que React fonctionne bien dans Docker
+    stdin_open: true
+    tty: true
